@@ -25,17 +25,23 @@ def extract_keypoints(img):
     return kp_img, des_img
 
 def find_homography(kp1, kp2, des1, des2):
-    FLANN_INDEX_KDTREE = 0
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    FLANN_INDEX_LSH = 6
+    index_params= dict(algorithm = FLANN_INDEX_LSH,
+                   table_number = 6, # 12
+                   key_size = 12,     # 20
+                   multi_probe_level = 1) #2
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
+    try:
+        matches = flann.knnMatch(des1,des2,k=2)
+    except:
+        return
 
     # store all the good matches as per Lowe's ratio test.
     good = []
-    for m, n in matches:
-        if m.distance < 0.7 * n.distance:
-            good.append(m)
+    for match in matches:
+        if len(match) > 1 and match[0].distance < 0.7 * match[1].distance:
+            good.append(match[0])
 
     MIN_MATCH_COUNT = 10
     if len(good) > MIN_MATCH_COUNT:
@@ -84,13 +90,13 @@ def crop_to_largest_blob(img):
     return crop
 
 def main():
-    ground_truth_img = cv2.imread('brick.jpg')
+    ground_truth_img = cv2.imread('data/brick.jpg')
     ground_truth_img = crop_to_largest_blob(ground_truth_img)
 
     print(len(ground_truth_img))
     kp_gt, des_gt = extract_keypoints(ground_truth_img)
 
-    cap = cv2.VideoCapture('brick_rotating.mp4')
+    cap = cv2.VideoCapture('data/brick_rotating.mp4')
 
     while(cap.isOpened()):
         start = cv2.getTickCount()
@@ -104,8 +110,11 @@ def main():
 
         # print(len(kp_gt))
         # print(len(kp_frame))
-
-        M, mask, good = find_homography(kp_gt, kp_frame, des_gt, des_frame)
+        res = find_homography(kp_gt, kp_frame, des_gt, des_frame)
+        if res is not None:
+            M, mask, good = res
+        else:
+            continue
         src_kp = []
         dest_kp = []
         for m in good:
